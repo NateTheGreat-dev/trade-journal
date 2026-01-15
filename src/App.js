@@ -22,6 +22,8 @@ export default function TradingJournal() {
     'Support and resistance'
   ]);
   const [newChecklistItem, setNewChecklistItem] = useState('');
+  const imageInputRef = React.useRef(null);
+  const jsonInputRef = React.useRef(null);
 
   const [newTrade, setNewTrade] = useState({
     screenshot: null,
@@ -88,6 +90,12 @@ export default function TradingJournal() {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Only process image files
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      
       const reader = new FileReader();
       reader.onloadend = () => {
         setNewTrade({
@@ -98,6 +106,8 @@ export default function TradingJournal() {
       };
       reader.readAsDataURL(file);
     }
+    // Reset the input
+    e.target.value = '';
   };
 
   const addTrade = () => {
@@ -159,6 +169,13 @@ export default function TradingJournal() {
   const importData = (event) => {
     const file = event.target.files[0];
     if (file) {
+      // Only process JSON files
+      if (!file.name.endsWith('.json')) {
+        alert('Please select a JSON backup file');
+        event.target.value = '';
+        return;
+      }
+      
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
@@ -177,6 +194,7 @@ export default function TradingJournal() {
         } catch (error) {
           alert('Error reading backup file: ' + error.message);
         }
+        event.target.value = '';
       };
       reader.readAsText(file);
     }
@@ -301,14 +319,19 @@ export default function TradingJournal() {
   const getCalendarData = () => {
     const dailyPnL = {};
     trades.forEach(trade => {
-      if (trade.pnl && trade.timestamp) {
+      if (trade.timestamp) {
         const date = new Date(trade.timestamp);
         const dateKey = date.toLocaleDateString();
         if (!dailyPnL[dateKey]) {
-          dailyPnL[dateKey] = { total: 0, trades: 0, date: date };
+          dailyPnL[dateKey] = { total: 0, trades: 0, wins: 0, date: date };
         }
-        dailyPnL[dateKey].total += parseFloat(trade.pnl) || 0;
+        if (trade.pnl) {
+          dailyPnL[dateKey].total += parseFloat(trade.pnl) || 0;
+        }
         dailyPnL[dateKey].trades += 1;
+        if (trade.outcome === 'win') {
+          dailyPnL[dateKey].wins += 1;
+        }
       }
     });
     return dailyPnL;
@@ -391,15 +414,20 @@ export default function TradingJournal() {
               >
                 <Download size={18} />
               </button>
-              <label className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-sm" title="Import backup">
+              <button
+                onClick={() => jsonInputRef.current?.click()}
+                className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center gap-2 transition-colors text-sm"
+                title="Import backup"
+              >
                 <Upload size={18} />
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={importData}
-                  className="hidden"
-                />
-              </label>
+              </button>
+              <input
+                ref={jsonInputRef}
+                type="file"
+                accept=".json,application/json"
+                onChange={importData}
+                style={{ display: 'none' }}
+              />
             </div>
             
             <button
@@ -505,70 +533,85 @@ export default function TradingJournal() {
             <p>No trades yet. Add your first trade to get started!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-6">
             {filteredTrades.map(trade => (
-              <div key={trade.id} className="bg-gray-800 rounded-lg overflow-hidden hover:ring-2 ring-blue-500 transition-all">
+              <div key={trade.id} className="bg-gray-800 rounded-xl overflow-hidden hover:ring-2 ring-blue-500 transition-all transform hover:scale-105">
                 <div className="relative cursor-pointer" onClick={() => setFullscreenImage(trade.screenshot)}>
-                  <img src={trade.screenshot} alt="Trade screenshot" className="w-full h-48 object-cover" />
-                  <div className="absolute top-2 right-2 flex gap-2">
+                  <img src={trade.screenshot} alt="Trade screenshot" className="w-full h-56 object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60"></div>
+                  <div className="absolute top-3 right-3 flex gap-2">
                     {trade.category && (
-                      <span className={`px-2 py-1 rounded text-xs font-bold ${
-                        trade.category === 'A+' ? 'bg-green-600' : 
-                        trade.category === 'B+' ? 'bg-yellow-600' :
-                        trade.category === 'C+' ? 'bg-orange-600' :
-                        trade.category === 'D+' ? 'bg-red-600' :
-                        trade.category === 'F' ? 'bg-red-800' : 'bg-gray-600'
+                      <span className={`px-3 py-1.5 rounded-lg text-xs font-bold backdrop-blur-sm ${
+                        trade.category === 'A+' ? 'bg-green-600 bg-opacity-90' : 
+                        trade.category === 'B+' ? 'bg-yellow-600 bg-opacity-90' :
+                        trade.category === 'C+' ? 'bg-orange-600 bg-opacity-90' :
+                        trade.category === 'D+' ? 'bg-red-600 bg-opacity-90' :
+                        trade.category === 'F' ? 'bg-red-800 bg-opacity-90' : 'bg-gray-600 bg-opacity-90'
                       }`}>
                         {trade.category}
                       </span>
                     )}
                     {trade.outcome && (
-                      <span className={`px-2 py-1 rounded text-xs font-bold ${
-                        trade.outcome === 'win' ? 'bg-green-600' : 'bg-red-600'
+                      <span className={`px-3 py-1.5 rounded-lg text-xs font-bold backdrop-blur-sm ${
+                        trade.outcome === 'win' ? 'bg-green-600 bg-opacity-90' : 'bg-red-600 bg-opacity-90'
                       }`}>
                         {trade.outcome === 'win' ? 'W' : 'L'}
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="p-4">
-                  <div className="text-xs text-gray-400 mb-2">
+                <div className="p-5">
+                  <div className="text-xs text-gray-400 mb-3 font-medium">
                     {new Date(trade.timestamp).toLocaleString()}
                   </div>
                   {trade.tags && (
-                    <div className="flex flex-wrap gap-1 mb-2">
+                    <div className="flex flex-wrap gap-2 mb-3">
                       {trade.tags.split(',').map((tag, i) => (
-                        <span key={i} className="text-xs bg-gray-700 px-2 py-1 rounded">
+                        <span key={i} className="text-xs bg-gray-700 px-3 py-1 rounded-full font-medium">
                           {tag.trim()}
                         </span>
                       ))}
                     </div>
                   )}
+                  {trade.checklist && Object.keys(trade.checklist).some(key => trade.checklist[key]) && (
+                    <div className="mb-3 p-3 bg-blue-900 bg-opacity-20 rounded-lg border border-blue-500 border-opacity-30">
+                      <div className="text-xs text-blue-300 font-semibold mb-2">Checklist ✓</div>
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(trade.checklist)
+                          .filter(([_, checked]) => checked)
+                          .map(([item, _], i) => (
+                            <span key={i} className="text-xs bg-blue-700 bg-opacity-40 text-blue-200 px-2 py-1 rounded">
+                              {item}
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                   {trade.pnl && (
-                    <div className={`text-sm font-bold mb-2 ${
+                    <div className={`text-xl font-bold mb-3 ${
                       parseFloat(trade.pnl) >= 0 ? 'text-green-400' : 'text-red-400'
                     }`}>
                       {parseFloat(trade.pnl) >= 0 ? '+' : ''}{trade.pnl}%
                     </div>
                   )}
                   {trade.notes && (
-                    <div className="text-sm text-gray-300 mb-3 line-clamp-2">
+                    <div className="text-sm text-gray-300 mb-4 line-clamp-2">
                       {trade.notes}
                     </div>
                   )}
                   <div className="flex gap-2">
                     <button
                       onClick={() => setEditingTrade(trade)}
-                      className="flex-1 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm flex items-center justify-center gap-1"
+                      className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm flex items-center justify-center gap-2 font-medium"
                     >
-                      <Edit2 size={14} />
+                      <Edit2 size={16} />
                       Edit
                     </button>
                     <button
                       onClick={() => deleteTrade(trade.id)}
-                      className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-sm"
+                      className="px-4 py-2.5 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </div>
@@ -591,11 +634,19 @@ export default function TradingJournal() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">Screenshot *</label>
+                    <button
+                      type="button"
+                      onClick={() => imageInputRef.current?.click()}
+                      className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-left transition-colors"
+                    >
+                      Choose Image File
+                    </button>
                     <input
+                      ref={imageInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
                       onChange={handleImageUpload}
-                      className="w-full"
+                      style={{ display: 'none' }}
                     />
                     {newTrade.screenshotPreview && (
                       <img src={newTrade.screenshotPreview} alt="Preview" className="mt-2 w-full h-48 object-cover rounded" />
@@ -1032,7 +1083,7 @@ export default function TradingJournal() {
 
         {showCalendarModal && (
           <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-6 z-50">
-            <div className="bg-gray-800 rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-gray-900 rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -1044,84 +1095,75 @@ export default function TradingJournal() {
                   </button>
                 </div>
 
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex justify-between items-center mb-6 bg-gray-800 p-3 rounded-lg">
                   <button
                     onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1))}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors font-bold"
                   >
-                    Previous
+                    ←
                   </button>
-                  <h3 className="text-xl font-semibold">
+                  <h3 className="text-xl font-bold">
                     {calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                   </h3>
                   <button
                     onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1))}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors font-bold"
                   >
-                    Next
+                    →
                   </button>
                 </div>
 
-                <div className="bg-gray-700 rounded-lg p-4">
-                  <div className="grid grid-cols-7 gap-2 mb-2">
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                      <div key={day} className="text-center font-bold text-gray-300 text-sm py-2">
-                        {day}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <div className="grid grid-cols-7 gap-2">
-                    {generateCalendarGrid(calendarDate.getFullYear(), calendarDate.getMonth()).map((week, weekIndex) => (
-                      <React.Fragment key={weekIndex}>
-                        {week.map((day, dayIndex) => {
-                          const dayData = getCalendarDataForDay(day);
-                          const isToday = day && 
-                            new Date().getDate() === day && 
-                            new Date().getMonth() === calendarDate.getMonth() &&
-                            new Date().getFullYear() === calendarDate.getFullYear();
-                          
-                          return (
-                            <div
-                              key={dayIndex}
-                              className={`min-h-24 p-2 rounded border-2 ${
-                                !day ? 'bg-gray-800 border-gray-800' :
-                                isToday ? 'border-blue-500' :
-                                dayData ? 
-                                  dayData.total > 0 ? 'bg-green-900 bg-opacity-40 border-green-700' :
-                                  dayData.total < 0 ? 'bg-red-900 bg-opacity-40 border-red-700' :
-                                  'bg-gray-800 border-gray-700'
-                                : 'bg-gray-800 border-gray-700'
-                              }`}
-                            >
-                              {day && (
-                                <>
-                                  <div className="text-sm font-semibold mb-1">{day}</div>
-                                  {dayData && (
-                                    <>
-                                      <div className={`text-lg font-bold ${
-                                        dayData.total > 0 ? 'text-green-400' : 'text-red-400'
-                                      }`}>
-                                        {dayData.total > 0 ? '+' : ''}{dayData.total.toFixed(2)}%
-                                      </div>
-                                      <div className="text-xs text-gray-400">
-                                        {dayData.trades} trade{dayData.trades !== 1 ? 's' : ''}
-                                      </div>
-                                    </>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </React.Fragment>
-                    ))}
-                  </div>
+                <div className="grid grid-cols-7 gap-2">
+                  {generateCalendarGrid(calendarDate.getFullYear(), calendarDate.getMonth()).map((week, weekIndex) => (
+                    <React.Fragment key={weekIndex}>
+                      {week.map((day, dayIndex) => {
+                        const dayData = getCalendarDataForDay(day);
+                        const isToday = day && 
+                          new Date().getDate() === day && 
+                          new Date().getMonth() === calendarDate.getMonth() &&
+                          new Date().getFullYear() === calendarDate.getFullYear();
+                        
+                        const winRate = dayData && dayData.trades > 0 ? ((dayData.wins / dayData.trades) * 100).toFixed(0) : '0';
+                        
+                        return (
+                          <div
+                            key={dayIndex}
+                            className={`h-24 p-2 rounded-lg flex flex-col justify-between transition-all ${
+                              !day ? 'bg-transparent' :
+                              dayData && dayData.trades > 0 ? 
+                                dayData.total > 0 ? 'bg-green-900 bg-opacity-25 border border-green-600 hover:bg-opacity-40' :
+                                dayData.total < 0 ? 'bg-red-900 bg-opacity-25 border border-red-600 hover:bg-opacity-40' :
+                                'bg-gray-800 border border-gray-700 hover:bg-gray-750'
+                              : 'bg-gray-800 border border-gray-700'
+                            } ${isToday ? 'ring-2 ring-blue-500' : ''}`}
+                          >
+                            {day && (
+                              <>
+                                <div className="text-xs text-gray-400 font-medium">{day}</div>
+                                {dayData && dayData.trades > 0 && (
+                                  <div className="flex flex-col items-center justify-center">
+                                    <div className={`text-lg font-bold leading-tight ${
+                                      dayData.total > 0 ? 'text-green-400' : 'text-red-400'
+                                    }`}>
+                                      {dayData.total > 0 ? '+' : ''}{dayData.total.toFixed(1)}%
+                                    </div>
+                                    <div className="text-xs text-gray-400 mt-0.5">
+                                      {dayData.trades}T • {winRate}%
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
                 </div>
 
                 <button
                   onClick={() => setShowCalendarModal(false)}
-                  className="w-full mt-6 bg-gray-700 hover:bg-gray-600 py-3 rounded font-medium"
+                  className="w-full mt-6 bg-gray-800 hover:bg-gray-700 py-3 rounded-lg font-medium transition-colors"
                 >
                   Close
                 </button>
